@@ -1,0 +1,13 @@
+{
+  "name": "ChainFlow",
+  "description": "A high-converting supply chain platform for real-time visibility, stock management, and AI-assisted communication.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "Real-time Inventory Tracking",
+    "AI-Powered Logistics Assistant",
+    "Multi-Role Dashboard",
+    "Live Delivery Tracking"
+  ]
+}

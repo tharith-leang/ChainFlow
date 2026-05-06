@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+
+    // --- User Profiles ---
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if (isOwner(userId) && isValidUser(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'company', 'contactInfo', 'profileImage', 'role'])
+      )) || isAdmin();
+      
+      function isValidUser(data) {
+        return data.uid == request.auth.uid 
+          && data.name is string && data.name.size() <= 100
+          && data.email is string && data.email.size() <= 100
+          && data.role in ['admin', 'supplier', 'customer']
+          && (!('company' in data) || data.company is string)
+          && (!('contactInfo' in data) || data.contactInfo is string);
+      }
+    }
+
+    // --- Products ---
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (incoming().role == 'supplier' || isAdmin()) && isValidProduct(incoming());
+      allow update: if isSignedIn() && (
+        (existing().supplierId == request.auth.uid && isValidProduct(incoming())) || 
+        (incoming().diff(existing()).affectedKeys().hasOnly(['quantity', 'status'])) ||
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (existing().supplierId == request.auth.uid || isAdmin());
+
+      function isValidProduct(data) {
+        return data.name is string && data.name.size() <= 200
+          && data.price is number && data.price >= 0
+          && data.quantity is number && data.quantity >= 0
+          && data.supplierId == request.auth.uid
+          && data.status in ['in-stock', 'out-of-stock'];
+      }
+    }
+
+    // --- Orders ---
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && (
+        existing().customerId == request.auth.uid || 
+        existing().supplierId == request.auth.uid || 
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.customerId == request.auth.uid || 
+        resource.data.supplierId == request.auth.uid || 
+        isAdmin()
+      );
+      allow create: if isSignedIn() && incoming().customerId == request.auth.uid && isValidOrder(incoming());
+      allow update: if isSignedIn() && (
+        (existing().supplierId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'carrier', 'trackingNumber'])) || 
+        (existing().customerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'notes', 'locationName']) && (
+          (existing().status == 'pending' && incoming().status == 'cancelled') ||
+          (incoming().status == 'delivered')
+        )) ||
+        isAdmin()
+      );
+
+      function isValidOrder(data) {
+        return data.customerId == request.auth.uid
+          && data.productId is string
+          && data.locationName is string && data.locationName.size() <= 200
+          && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+          && data.quantity is number && data.quantity > 0
+          && data.status in ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+      }
+    }
+
+    // --- Notifications ---
+    match /notifications/{notificationId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn(); // System/other users can create
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['read'])
+      );
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // --- Conversations ---
+    match /conversations/{conversationId} {
+      allow get: if isSignedIn() && request.auth.uid in existing().participants;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isSignedIn() && request.auth.uid in incoming().participants;
+      allow update: if isSignedIn() && request.auth.uid in existing().participants;
+    }
+
+    // --- Messages ---
+    match /conversations/{conversationId}/messages/{messageId} {
+      allow list: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+      allow create: if isSignedIn() && 
+        request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants &&
+        isValidMessage(incoming());
+
+      function isValidMessage(data) {
+        return data.senderId == request.auth.uid
+          && (data.text is string || data.text == '')
+          && data.type in ['text', 'image', 'audio', 'video', 'product-share', 'file'];
+      }
+    }
+  }
+}

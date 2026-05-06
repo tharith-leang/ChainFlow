@@ -1,0 +1,133 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role-based access control.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "supplier", "customer"] },
+        "company": { "type": "string" },
+        "profileImage": { "type": "string" },
+        "contactInfo": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Inventory item managed by suppliers or admins.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "supplierId": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string", "enum": ["in-stock", "out-of-stock"] },
+        "lowStockThreshold": { "type": "number" }
+      },
+      "required": ["name", "quantity", "price", "supplierId", "status"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Transaction record between customer and supplier.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "shipped", "delivered"] },
+        "locationName": { "type": "string" },
+        "notes": { "type": "string" },
+        "deliveryLocation": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerId", "supplierId", "productId", "quantity", "status", "locationName"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Individual chat message.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "image", "product-share"] },
+        "attachmentUrl": { "type": "string" },
+        "productData": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "text", "type", "createdAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Chat session between two or more users.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "lastMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["participants", "updatedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System alert or interaction notification.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "desc": { "type": "string" },
+        "type": { "type": "string", "enum": ["order", "inventory", "alert"] },
+        "orderId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "desc", "type", "read", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Collection of user profiles."
+    },
+    "products": {
+      "schema": "Product",
+      "description": "Global inventory of products."
+    },
+    "orders": {
+      "schema": "Order",
+      "description": "Global orders collection."
+    },
+    "notifications": {
+      "schema": "Notification",
+      "description": "User notifications."
+    },
+    "conversations": {
+      "schema": "Conversation",
+      "description": "Chat channels."
+    },
+    "conversations/{conversationId}/messages": {
+      "schema": "Message",
+      "description": "Messages within a specific conversation."
+    }
+  }
+}
